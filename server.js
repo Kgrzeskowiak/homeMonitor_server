@@ -8,6 +8,8 @@ var devicesList = [];
 
 app.get('/temperature', function (req, res) {
     var result = dbConnection.getTemperatures()
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     res.json(result)
   })
 app.post('/temperature', function (req, res) {
