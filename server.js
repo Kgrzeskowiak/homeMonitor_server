@@ -7,6 +7,15 @@ var mosca = require('mosca')
 var devicesList = [];
 var mqttClientList = [];
 
+var searchF = function searchValue(value)
+{
+  return function search(element)
+  {
+    if (element == value)
+    return element
+  }
+}
+
 
 app.get('/temperature', function (req, res) {
     var result = dbConnection.getTemperatures()
@@ -38,6 +47,7 @@ app.listen(port, () => console.log(`Server running on ${port}!`))
 
 ////MQTT SERVER/////
 
+
 var ascoltatore = {
   type: 'redis',
   redis: require('redis'),
@@ -61,49 +71,31 @@ server.on('ready', setup);
 server.on('clientConnected', function(client) {
   console.log('client connected', client.id);	
   mqttClientList.push({client : client.id})
-  console.log(mqttClientList)	
 });
 
 server.on('published', function(packet, client) {
+  if (client != null) {
   console.log('Published', packet.topic, packet.payload);
-  function serachIndex(element)
-{
-  console.log(element)
-  if (element == client.id)
-  return element
-}
-  var indexNumber = mqttClientList.findIndex(serachIndex)
-  console.log(client)
+  var indexNumber = mqttClientList.findIndex(searchF(client.id))
   mqttClientList[indexNumber].publisher = packet.topic
-  console.log(mqttClientList)
-
-});
-server.on('subscribed', function(topic, client){
-  // console.log('subscribed', topic, client)
-  function serachIndex(element)
-  {
-  console.log(element)
-  if (element == client.id)
-  return element
   }
-  var indexNumber = mqttClientList.findIndex(serachIndex)
-  console.log(indexNumber)
-  // mqttClientList[indexNumber].topicSubscribed = topic
+});
+server.on('subscribed', function(topic, client) {
+  // console.log('subscribed', topic, client)
+  var indexNumber = mqttClientList.findIndex(searchF(client.id))
+  mqttClientList[indexNumber].topicSubscribed = topic
   console.log(mqttClientList)
 })
 
+
+
 function setup() {
   console.log('Mosca server is up and running')
-}
+  var mqtt = require('mqtt')
+  var options = { clientId: 'listener' }
+  var mqtt_client = mqtt.connect('mqtt://localhost:1883', options)
 
-////MQTT LISTENER////
-var mqtt = require('mqtt')
-var options = {
-  clientId: 'listener'
-}
-var mqtt_client = mqtt.connect('mqtt://localhost:1883', options)
-
-mqtt_client.on('connect', function () {
+  mqtt_client.on('connect', function () {
   mqtt_client.subscribe('sensors/temperature', function (err) {
     if (!err) {
       mqtt_client.publish('presence', 'Hello mqtt')
@@ -115,3 +107,5 @@ mqtt_client.on('message', function (topic, message) {
   console.log(message.toString())
   //client.end()
 })
+}
+
