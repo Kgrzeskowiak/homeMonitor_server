@@ -5,6 +5,8 @@ const axios = require('axios')
 var mosca = require('mosca')
 var moment = require('moment');
 const app = express()
+var http = require('http').Server(app)
+var io = require('socket.io')(http)
 const port = 3000
 const dbConnection = new database
 var mqttClientList = {};
@@ -120,50 +122,23 @@ mqtt_client.on('message', function (topic, message) {
 })
 }
 
-////WEB SOCKET////
+////Socket IO//////
 
-var WebSocketServer = require('websocket').server;
-var http = require('http');
- 
-var server = http.createServer(function(request, response) {
-    console.log((new Date()) + ' Received request for ' + request.url);
-    response.writeHead(404);
-    response.end();
+io.on('connection', function(socket){
+  console.log('a user connected');
+  msgSend()
+  socket.on('disconnect', function(){
+    console.log('user disconnected');
+  });
 });
-server.listen(5000, function() {
-    console.log((new Date()) + ' Web Socket Server is listening on port 5000');
+
+http.listen(5000, function(){
+  console.log('listening on *:5000');
 });
- 
-wsServer = new WebSocketServer({
-    httpServer: server,
-    autoAcceptConnections: true
-});
- 
-function originIsAllowed(origin) {
-  console.log(origin)
-  return true;
+function msgSend(){
+  var msg = "Sensor wjechal"
+  io.emit('sensor registered', msg)
+  console.log("sygnal poszedl")
 }
- 
-wsServer.on('request', function(request) {
-    if (!originIsAllowed(request.origin)) {
-      request.reject();
-      console.log((new Date()) + ' Connection from origin ' + request.origin + ' rejected.');
-      return;
-    }
-    
-    var connection = request.accept('echo-protocol', request.origin);
-    console.log((new Date()) + ' Connection accepted.');
-    connection.on('message', function(message) {
-        if (message.type === 'utf8') {
-            console.log('Received Message: ' + message.utf8Data);
-            connection.sendUTF(message.utf8Data);
-        }
-        else if (message.type === 'binary') {
-            console.log('Received Binary Message of ' + message.binaryData.length + ' bytes');
-            connection.sendBytes(message.binaryData);
-        }
-    });
-    connection.on('close', function(reasonCode, description) {
-        console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
-    });
-});
+
+
