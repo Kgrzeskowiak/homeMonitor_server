@@ -1,34 +1,25 @@
 const express = require('express')
+const bodyParser = require('body-parser');
+const database = require('./dbHandler.js');
+const axios = require('axios')
+var mosca = require('mosca')
+var moment = require('moment');
 const app = express()
 const port = 3000
-const database = require('./dbHandler.js');
 const dbConnection = new database
-var mosca = require('mosca')
-var devicesList = [];
-var mqttClientList = [];
-
-var searchF = function searchValue(value)
-{
-  return function search(element)
-  {
-    if (element == value)
-    return element
-  }
-}
+var mqttClientList = {};
+app.use(bodyParser.urlencoded({ extended: false }))
+app.use(bodyParser.json())
 
 
 app.get('/temperature', function (req, res) {
-    var result = dbConnection.getTemperatures()
-    res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    res.header("Access-Control-Allow-Origin", "*");
+    var result = dbConnection.getTemperatures()
     res.json(result)
   })
 app.post('/temperature', function (req, res) {
-    var id = req.param('id');
-    var temp = req.param('temp');
-    var humidity = req.param('humidity');
-    var date = req.param('date');
-    dbConnection.addNewMeasurment(id,temp,humidity,date)
+    dbConnection.addNewMeasurment(req.body.id,req.body.temp,req.body.humidity,req.body.date)
     res.send("200 OK");
   })
 app.post('/register', function (req, res) {
@@ -38,15 +29,15 @@ app.post('/register', function (req, res) {
   devicesList.push({name : name, sensorType : sensorType, gpio : gpio})
   res.send("Device registered")
 })
-app.get('/register', function (req,res) {
-  var deviceListJson = JSON.parse(devicesList)
-  res.json(deviceListJson)
+app.get('/deviceList', function (req,res) {
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  res.header("Access-Control-Allow-Origin", "*");
+  res.json(mqttClientList)
 })
 
-app.listen(port, () => console.log(`Server running on ${port}!`))
+app.listen(port, () => console.log(`HTTP Server running on ${port}!`))
 
 ////MQTT SERVER/////
-
 
 var ascoltatore = {
   type: 'redis',
@@ -70,42 +61,109 @@ server.on('ready', setup);
 
 server.on('clientConnected', function(client) {
   console.log('client connected', client.id);	
-  mqttClientList.push({client : client.id})
+  mqttClientList[client.id] = { id : client.id }
+  mqttClientList[client.id].lastActivity = moment().format('MM DD YYYY, HH:mm:ss')
+
 });
 
 server.on('published', function(packet, client) {
   if (client != null) {
-  console.log('Published', packet.topic, packet.payload);
-  var indexNumber = mqttClientList.findIndex(searchF(client.id))
-  mqttClientList[indexNumber].publisher = packet.topic
+  //console.log('Published', packet.topic, packet.payload);
+  mqttClientList[client.id].publisher = packet.topic
+  mqttClientList[client.id].lastActivity = moment().format('MM DD YYYY, HH:mm:ss')
   }
 });
+server.on('clientDisconnected', function(client)
+{
+  delete mqttClientList[client.id]
+  console.log(client.id, "disconnected")
+})
 server.on('subscribed', function(topic, client) {
   // console.log('subscribed', topic, client)
-  var indexNumber = mqttClientList.findIndex(searchF(client.id))
-  mqttClientList[indexNumber].topicSubscribed = topic
-  console.log(mqttClientList)
+  mqttClientList[client.id].topicSubscribed = topic
+  mqttClientList[client.id].lastActivity = moment().format('MM DD YYYY, HH:mm:ss')
 })
-
-
 
 function setup() {
   console.log('Mosca server is up and running')
   var mqtt = require('mqtt')
-  var options = { clientId: 'listener' }
+  var options = { clientId: 'main_listener' }
   var mqtt_client = mqtt.connect('mqtt://localhost:1883', options)
 
   mqtt_client.on('connect', function () {
   mqtt_client.subscribe('sensors/temperature', function (err) {
-    if (!err) {
-      mqtt_client.publish('presence', 'Hello mqtt')
-    }
+    // if (!err) {
+    //   mqtt_client.publish('presence', 'Hello mqtt')
+    // }
   })
 })
 mqtt_client.on('message', function (topic, message) {
-  // message is Buffer
-  console.log(message.toString())
+  if (topic = 'sensors/temperature')
+  {
+    var mqttPayload = JSON.parse(message);
+ 
+    axios.post('http://192.168.1.9:3000/temperature', {
+    id: mqttPayload.id,
+    temp: mqttPayload.temperature,
+    humidity: mqttPayload.humidity,
+    date: mqttPayload.date
+    })
+    .then(function (response) {
+      mqttClientList[mqttPayload.id].lastActivity = moment().format('MM DD YYYY, HH:mm:ss')
+    })
+    .catch(function (error) {
+      console.log(error);
+    });
+  }
+
   //client.end()
 })
 }
 
+////WEB SOCKET////
+
+var WebSocketServer = require('websocket').server;
+var http = require('http');
+ 
+var server = http.createServer(function(request, response) {
+    console.log((new Date()) + ' Received request for ' + request.url);
+    response.writeHead(404);
+    response.end();
+});
+server.listen(5000, function() {
+    console.log((new Date()) + ' Web Socket Server is listening on port 5000');
+});
+ 
+wsServer = new WebSocketServer({
+    httpServer: server,
+    autoAcceptConnections: true
+});
+ 
+function originIsAllowed(origin) {
+  console.log(origin)
+  return true;
+}
+ 
+wsServer.on('request', function(request) {
+    if (!originIsAllowed(request.origin)) {
+      request.reject();
+      console.log((new Date()) + ' Connection from origin ' + request.origin + ' rejected.');
+      return;
+    }
+    
+    var connection = request.accept('echo-protocol', request.origin);
+    console.log((new Date()) + ' Connection accepted.');
+    connection.on('message', function(message) {
+        if (message.type === 'utf8') {
+            console.log('Received Message: ' + message.utf8Data);
+            connection.sendUTF(message.utf8Data);
+        }
+        else if (message.type === 'binary') {
+            console.log('Received Binary Message of ' + message.binaryData.length + ' bytes');
+            connection.sendBytes(message.binaryData);
+        }
+    });
+    connection.on('close', function(reasonCode, description) {
+        console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
+    });
+});
