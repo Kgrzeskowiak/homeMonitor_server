@@ -11,6 +11,12 @@ getTemperatures()
   var dataJson = sql.all()
   return dataJson
 }
+getTemperature(nodeName)
+{
+  const sql = this.db.prepare('SELECT * FROM temperatures WHERE sensorId = ?').bind(nodeName);
+  var dataJson = sql.all()
+  return dataJson
+}
 addNewMeasurment(id, temp, humidity, date)
 {
   const sql = this.db.prepare('INSERT INTO temperatures (sensorId, temperature, humidity, date) VALUES (?,?,?,?)')
