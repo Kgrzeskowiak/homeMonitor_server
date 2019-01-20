@@ -7,6 +7,7 @@ var moment = require('moment');
 const app = express()
 var http = require('http').Server(app)
 var io = require('socket.io')(http)
+var cors = require('cors')
 const port = 3000
 const dbConnection = new database
 var mqttClientList = {};
@@ -14,19 +15,14 @@ var mqttClientList = {};
 
 app.use(bodyParser.urlencoded({extended: false}))
 app.use(bodyParser.json())
+app.options('*', cors())
 
-app.options("/*", function(req, res, next) {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, name', );
-    res.status(200).send("ok");
-})
 
 app.get('/temperature',function (req, res) {
     res.header("Access-Control-Allow-Origin", "*")
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
     res.header("Access-Control-Allow-Headers", "Origin, Content-Length, X-Requested-With, Content-Type, Accept, Authorization, name");
-    var result = dbConnection.getTemperature(req.headers.name)
+    var result = dbConnection.getTemperature(req.query["nodeName"], req.query["timeRange"])
     res.json(result)
 })
 app.post('/temperature', function (req, res) {
