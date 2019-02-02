@@ -30,8 +30,15 @@ app.post('/temperature', function (req, res) {
         res.status(400).send("Failure")
         return;
     }
-    dbConnection.addNewMeasurment(req.body.id, req.body.temp, req.body.humidity, req.body.date)
+    dbConnection.addNewMeasurment(req.body.id, req.body.temp, req.body.humidity, req.body.location, req.body.date)
     res.send();
+})
+app.get('/locationTemperature', function (req, res) {
+    res.header("Access-Control-Allow-Origin", "*")
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header("Access-Control-Allow-Headers", "Origin, Content-Length, X-Requested-With, Content-Type, Accept, Authorization, name");
+    var result = dbConnection.getLocationTemperature(req.query["location"])
+    res.json(result)
 })
 app.post('/register', function (req, res) {
     var name = req.param('name');
@@ -71,10 +78,12 @@ var server = new mosca.Server(moscaSettings);
 server.on('ready', setup);
 
 server.on('clientConnected', function (client) {
-    console.log(client.id + " Connected")
+    console.log(client.id + " Connected" + " " + moment().format('MM DD YYYY HH:mm:ss'))
     mqttClientList[client.id] = {
         id: client.id,
         type: client.type,
+        location : client.location,
+        state: "online",
         lastActivity: moment().format('MM DD YYYY, HH:mm:ss')
     }
    // Socket_deviceChangedMessageEmit(client.id)
@@ -85,25 +94,27 @@ server.on('published', function (packet, client) {
         //console.log('Published', packet.topic, packet.payload);
         if (packet.topic != "register") {
             mqttClientList[client.id].publisher = packet.topic
+            mqttClientList[client.id].state = "online"
         }
-        mqttClientList[client.id].lastActivity = moment().format('MM DD YYYY, HH:mm:ss')
+        mqttClientList[client.id].lastActivity = moment().format('MM DD YYYY HH:mm:ss')
     }
 });
 server.on('clientDisconnected', function (client) {
     Socket_deviceDisconnected(mqttClientList[client.id])
-    delete mqttClientList[client.id]
-    console.log(client.id, "disconnected")
+    mqttClientList[client.id].state = "offline"
+    console.log(client.id, "disconnected" + " "  + moment().format('MM DD YYYY HH:mm:ss'));
 })
 server.on('subscribed', function (topic, client) {
     // console.log('subscribed', topic, client)
     if (topic != "register") {
         mqttClientList[client.id].topicSubscribed = topic
+        mqttClientList[client.id].state = "online"
     }
-    mqttClientList[client.id].lastActivity = moment().format('MM DD YYYY, HH:mm:ss')
+    mqttClientList[client.id].lastActivity = moment().format('MM DD YYYY HH:mm:ss')
 })
 
 function setup() {
-    console.log('Mosca server is up and running on port 1883')
+    console.log('Mosca server is running on 1883')
     var mqtt = require('mqtt')
     var options = {clientId: 'main_listener'}
     var mqtt_client = mqtt.connect('mqtt://localhost:1883', options)
@@ -124,10 +135,11 @@ function setup() {
                 id: mqttPayload.id,
                 temp: mqttPayload.temperature,
                 humidity: mqttPayload.humidity,
-                date: mqttPayload.date,
+                location : mqttPayload.location,
+                date: moment().format('YYYY-MM-DD HH:mm')
             })
                 .then(function (response) {
-                    mqttClientList[mqttPayload.id].lastActivity = moment().format('MM DD YYYY, HH:mm:ss')
+                    mqttClientList[mqttPayload.id].lastActivity = moment().format('MM DD YYYY HH:mm:ss')
                 })
                 .catch(function (error) {
                     console.log(error);
@@ -152,7 +164,7 @@ io.on('connection', function (socket) {
 });
 
 http.listen(5000, function () {
-    console.log('Socket IO listening on 5000');
+    console.log('Socket IO is running on 5000');
 });
 
 function Socket_deviceChangedMessageEmit(deviceName) {
