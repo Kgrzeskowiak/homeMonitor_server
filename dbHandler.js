@@ -15,6 +15,12 @@ getLocationTemperature(location)
   )
   return dataJson
 }
+getLastReadings()
+{
+  const sql = this.db.prepare('SELECT * FROM temperatures WHERE measurmentDate >= datetime("now", "-30 minutes", "localtime") group by location');
+  var dataJson = sql.all()
+  return dataJson
+}
 getTemperature(nodeName, timeRange)
 {
   timeRange = timeRange + ' days'

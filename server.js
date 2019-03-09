@@ -40,6 +40,13 @@ app.get('/locationTemperature', function (req, res) {
     var result = dbConnection.getLocationTemperature(req.query["location"])
     res.json(result)
 })
+app.get('/lastReadings', function (req, res) {
+    res.header("Access-Control-Allow-Origin", "*")
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header("Access-Control-Allow-Headers", "Origin, Content-Length, X-Requested-With, Content-Type, Accept, Authorization, name");
+    var result = dbConnection.getLastReadings();
+    res.json(result)
+})
 app.post('/register', function (req, res) {
     var name = req.param('name');
     var sensorType = req.param('sensorType');
@@ -100,7 +107,7 @@ server.on('published', function (packet, client) {
     }
 });
 server.on('clientDisconnected', function (client) {
-    Socket_deviceDisconnected(mqttClientList[client.id])
+    SocketEmit_deviceDisconnected(mqttClientList[client.id])
     mqttClientList[client.id].state = "offline"
     console.log(client.id, "disconnected" + " "  + moment().format('MM DD YYYY HH:mm:ss'));
 })
@@ -120,12 +127,10 @@ function setup() {
     var mqtt_client = mqtt.connect('mqtt://localhost:1883', options)
     mqtt_client.on('connect', function () {
         mqtt_client.subscribe('sensors/temperature', function (err) {
-            // if (!err) {
-            //   mqtt_client.publish('presence', 'Hello mqtt')
-            // }
         })
         mqtt_client.subscribe('register', function (err) {
-
+        })
+        mqtt_client.subscribe('sensors/garage_mainGate', function (err) {
         })
     })
     mqtt_client.on('message', function (topic, message) {
@@ -147,9 +152,11 @@ function setup() {
         }
         if (topic == 'register') {
             mqttClientList[mqttPayload.id].type = mqttPayload.type
-            Socket_deviceRegistered(mqttClientList[mqttPayload.id])
+            SocketEmit_deviceConnected(mqttClientList[mqttPayload.id])
         }
-
+        if (topic == 'sensors/garage_mainGate'){
+            SocketEmit_garageState(mqttPayload.state);
+        }
         //client.end()
     })
 }
@@ -172,13 +179,15 @@ function Socket_deviceChangedMessageEmit(deviceName) {
     io.emit('sensor change', msg)
 }
 
-function Socket_deviceRegistered(client) {
+function SocketEmit_deviceConnected(client) {
     io.emit('device connected', client)
 }
-function Socket_deviceDisconnected(client)
+function SocketEmit_deviceDisconnected(client)
 {
     io.emit('device disconnected', client)
-
+}
+function SocketEmit_garageState(state){
+    io.emit('garageState', state)
 }
 
 
