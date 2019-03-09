@@ -3,3 +3,6 @@
 .idea/homeMonitor_server.iml
 .idea/misc.xml
 .idea/workspace.xml
+.idea/webServers.xml
+.idea/vcs.xml
+.idea/deployment.xml
