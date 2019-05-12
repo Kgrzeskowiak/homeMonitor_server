@@ -1,15 +1,18 @@
 const express = require('express')
 const bodyParser = require('body-parser');
 const database = require('./dbHandler.js');
+var moment = require('moment')
 const axios = require('axios')
 var mosca = require('mosca')
-var moment = require('moment');
 const app = express()
 var http = require('http').Server(app)
 var io = require('socket.io')(http)
 var cors = require('cors')
 const port = 3000
+const SmsAlert = require('./SmsAlerts.js');
+const smsKey = require('./smsToken.js')
 const dbConnection = new database
+const smsAlert = new SmsAlert(axios, smsKey.token, moment)
 var mqttClientList = {};
 
 
@@ -156,6 +159,7 @@ function setup() {
         }
         if (topic == 'sensors/garage_mainGate'){
             SocketEmit_garageState(mqttPayload.state);
+            smsAlert.gateStatusUpdate(mqttPayload.state)
         }
         //client.end()
     })
