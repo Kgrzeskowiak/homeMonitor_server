@@ -12,9 +12,17 @@ const port = 3000
 const SmsAlert = require('./SmsAlerts.js');
 const smsKey = require('./smsToken.js')
 const dbConnection = new database
-const smsAlert = new SmsAlert(axios, smsKey.token, moment)
 var mqttClientList = {};
+var smsAlert = createSmsAlertClass();
+var config = ''
 
+function createSmsAlertClass()
+{
+    var fs = require('fs');
+    let rawdata = fs.readFileSync('config.json');  
+    config = JSON.parse(rawdata);
+    return new SmsAlert(axios, smsKey.token, moment, config)
+}
 
 app.use(bodyParser.urlencoded({extended: false}))
 app.use(bodyParser.json())
@@ -62,8 +70,30 @@ app.get('/deviceList', function (req, res) {
     res.header("Access-Control-Allow-Origin", "*");
     res.json(mqttClientList)
 })
+app.get('/alarmConfig', function (req, res)
+{
+    var fs = require('fs');
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    res.header("Access-Control-Allow-Origin", "*");
+    let rawdata = fs.readFileSync('config.json');  
+    let config = JSON.parse(rawdata);
+    res.json(config)
+})
+{
+app.post('/alarmConfig', function (req, res)
+{
+    var fs = require('fs');
+    fs.writeFileSync('config.json', json, function (err) {
+        if(err) {
+            res.status(400).send("Failure")
+        }
+        res.status("200").send("OK")
+    }
+    )
+})
+}
 
-app.listen(port, () => console.log(`HTTP Server running on ${port}!`))
+app.listen(port, () => console.log(`HTTP Server running on ${port}`))
 
 ////MQTT SERVER/////
 

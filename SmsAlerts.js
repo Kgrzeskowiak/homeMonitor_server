@@ -1,19 +1,25 @@
 module.exports = class SmsAlert {
-  constructor(axios, key, moment) {
+  constructor(axios, key, moment, config) {
     this.axios = axios;
     this.key = key;
     this.moment = moment;
-    this.alarmFrom = this.moment("23:00:00", "HH:mm");
-    this.alarmTo = this.moment("07:00:00", "HH:mm");
+    this.nightFrom = this.moment(config.nightFrom, "HH:mm");
+    this.nightTo = this.moment(config.nightTo, "HH:mm");
     this.ticks = 0;
-    this.dayAlarmTimeout = 0.2
-    this.nightAlarmTimeout = 3
-    this.recievers = ''
+    this.dayAlarmTimeout = config.dayAlarmTimeout
+    this.nightAlarmTimeout = config.nightAlarmTimeout
+    this.recievers = config.recievers.join()
     this.messageSent = false
+    this.active = config.alarmActive
   }
-  initialize() {}
-  updateConfig() {}
-  getConfig() {}
+  updateConfig() {
+    this.nightFrom = this.moment(config.nightFrom, "HH:mm");
+    this.nightTo = this.moment(config.nightTo, "HH:mm");
+    this.dayAlarmTimeout = config.dayAlarmTimeout
+    this.nightAlarmTimeout = config.nightAlarmTimeout 
+    this.recievers = config.recievers.join()
+    this.active = config.alarmActive
+  }
   gateStatusUpdate(status) {
     if (status === "open") {
         this.ticks++;  
@@ -28,7 +34,7 @@ module.exports = class SmsAlert {
             this.messageSent = false
         }
     }
-    if (this.moment().isBetween(this.alarmFrom, this.alarmTo))
+    if (this.moment().isBetween(this.nightFrom, this.nightTo))
     {
         this.alarm(this.nightAlarmTimeout)
     }
@@ -38,13 +44,17 @@ module.exports = class SmsAlert {
     }
   }
   alarm(timeout){
+    if (this.active === true){
     if (this.ticks >= timeout * 12 && this.messageSent === false) {
-            var message = 'Brama garażowa otwarta powyżej ' + timeout + ' minut. Wiadomość wygenerowana :' + this.moment().format('DD-MM HH:mm')
+            var message = 'Brama garażowa otwarta powyżej ' + timeout + ' minut.' + this.moment().format('DD-MM HH:mm')
             this.sendSms(message)
-            console.log("Wysłany SMS")
-    
+            console.log("Wysłany SMS", message)
       }
   }
+  else {
+      console.log("Alarm is set to off")
+  }
+}
   sendSms(message) {
     this.messageSent = true; 
     this.axios
@@ -53,7 +63,7 @@ module.exports = class SmsAlert {
         to: this.recievers,
         message: message,
         encoding : 'utf-8',
-        test: 0
+        test: 1
       })
       .then(function(response) {
         console.log("Status wysyłki", response.status);
