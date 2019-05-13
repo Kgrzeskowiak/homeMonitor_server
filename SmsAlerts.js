@@ -8,21 +8,31 @@ module.exports = class SmsAlert {
     this.ticks = 0;
     this.dayAlarmTimeout = config.dayAlarmTimeout
     this.nightAlarmTimeout = config.nightAlarmTimeout
-    this.recievers = config.recievers.join()
+    this.recievers = this.getRecievers(config)
+   
     this.messageSent = false
     this.active = config.alarmActive
   }
-  updateConfig() {
+  getRecievers(config)
+  {
+      var rec = []
+      config.recievers.forEach(reciever => {
+          rec.push(reciever.Number)
+      })
+      return rec.join()
+  }
+  updateConfig(config) {
     this.nightFrom = this.moment(config.nightFrom, "HH:mm");
     this.nightTo = this.moment(config.nightTo, "HH:mm");
     this.dayAlarmTimeout = config.dayAlarmTimeout
     this.nightAlarmTimeout = config.nightAlarmTimeout 
-    this.recievers = config.recievers.join()
+    this.recievers = this.getRecievers(config)
     this.active = config.alarmActive
+    console.log("config updated", this.dayAlarmTimeout, this.nightAlarmTimeout, this.active)
   }
   gateStatusUpdate(status) {
     if (status === "open") {
-        this.ticks++;  
+        this.ticks++;
       }
     if (status === "close") {
         this.ticks = 0;
@@ -52,7 +62,7 @@ module.exports = class SmsAlert {
       }
   }
   else {
-      console.log("Alarm is set to off")
+      
   }
 }
   sendSms(message) {
